@@ -1,0 +1,8 @@
+{
+  "enabled": true,
+  "owner": "Sabbirx01",
+  "repo": "Automailer_EXE",
+  "asset_prefix": "AutoMailer",
+  "token": "",
+  "_note": "Feed for the in-app updater. The app reads its own copy of this file next to AutoMailer.exe; this one documents the feed."
+}

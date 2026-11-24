@@ -1,0 +1,11 @@
+*.exe
+*.zip
+dist/
+build/
+__pycache__/
+*.pyc
+cookies/
+auto_mailer.log
+license_cache.json
+device.json
+config.json
