@@ -243,33 +243,46 @@ async function unlock() {
 
 /* ── where the file lives (GitHub releases) ──────────────────────────────── */
 async function resolveDownload() {
-  const latestPage = `https://github.com/${CONFIG.OWNER}/${CONFIG.REPO}/releases/latest`;
-  const direct = `https://github.com/${CONFIG.OWNER}/${CONFIG.REPO}/releases/latest/download/${CONFIG.FALLBACK_ASSET}`;
-  dlEl.href = direct;
-  dlEl.setAttribute("aria-disabled", "false");
-  sizeEl.textContent = "Latest build from GitHub — if nothing downloads, the build is not published yet.";
+  const dlUrl = (name) =>
+    `https://github.com/${CONFIG.OWNER}/${CONFIG.REPO}/releases/latest/download/${name}`;
+  let href = dlUrl(CONFIG.FALLBACK_ASSET);
+  const bits = [];
 
+  /* version.json sits in the repo root, right next to Downlad/ — same origin on
+     GitHub Pages, so this never hits the API rate limit */
+  for (const path of ["../version.json", "version.json"]) {
+    try {
+      const r = await fetch(path, { cache: "no-store" });
+      if (!r.ok) continue;
+      const v = await r.json();
+      if (!v || !v.version) continue;
+      bits.push("v" + v.version);
+      if (v.asset) href = dlUrl(v.asset);
+      if (v.size) bits.push(humanSize(v.size));
+      break;
+    } catch (_) { /* keep the fallback link */ }
+  }
+
+  /* nice-to-have: real download count, only when GitHub's API answers */
   try {
     const r = await fetch(`https://api.github.com/repos/${CONFIG.OWNER}/${CONFIG.REPO}/releases/latest`,
       { headers: { Accept: "application/vnd.github+json" } });
-    if (!r.ok) return;
-    const rel = await r.json();
-    const asset = (rel.assets || []).find((a) =>
-      a.name.toLowerCase().startsWith(CONFIG.ASSET_PREFIX.toLowerCase()) &&
-      /\.(exe|zip)$/i.test(a.name));
-    if (!asset) {
-      sizeEl.textContent = `No ${CONFIG.ASSET_PREFIX} build published yet — ask the developer.`;
-      dlEl.setAttribute("aria-disabled", "true");
-      return;
+    if (r.ok) {
+      const rel = await r.json();
+      const asset = (rel.assets || []).find((a) =>
+        a.name.toLowerCase().startsWith(CONFIG.ASSET_PREFIX.toLowerCase()) &&
+        /\.(exe|zip)$/i.test(a.name));
+      if (asset) {
+        href = asset.browser_download_url;
+        if (!bits.some((b) => b.startsWith("v"))) bits.unshift(rel.tag_name || "latest");
+        bits.push(`${asset.download_count || 0} downloads`);
+      }
     }
-    dlEl.href = asset.browser_download_url;
-    const bits = [rel.tag_name || "", humanSize(asset.size), `${asset.download_count || 0} downloads`]
-      .filter(Boolean);
-    sizeEl.textContent = bits.join(" · ");
-    if (rel.html_url) sizeEl.dataset.page = rel.html_url;
-  } catch (_) {
-    /* rate-limited or offline: the direct latest-download link still works */
-  }
+  } catch (_) { /* rate-limited: the direct link still works */ }
+
+  dlEl.href = href;
+  dlEl.setAttribute("aria-disabled", "false");
+  sizeEl.textContent = bits.length ? bits.join(" · ") : "Latest build — direct download";
 }
 
 /* ── wiring ──────────────────────────────────────────────────────────────── */
